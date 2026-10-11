@@ -1,0 +1,24 @@
+# Private acquisitions and exported datasets (keep local)
+recordings/
+*.jsonl
+*.jsonl.part
+*.npz
+*.npy
+*.bin
+# Python environments and caches
+.venv/
+.release-venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+# Local diagnostics and editors
+*.log
+.env
+.env.*
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

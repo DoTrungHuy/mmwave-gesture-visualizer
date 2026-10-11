@@ -1,0 +1,7 @@
+# Validated environment: Python 3.12 on Windows.
+numpy==2.5.2
+matplotlib==3.11.1
+pyserial==3.5
+fastapi==0.142.2
+uvicorn==0.54.0
+websockets==17.1

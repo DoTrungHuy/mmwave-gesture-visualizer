@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IWR6843AOP 手势实验室</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --border: #30363d;
+    --text: #c9d1d9; --dim: #8b949e; --accent: #58a6ff;
+    --green: #3fb950; --red: #f85149; --yellow: #d29922;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 13px/1.5 "Microsoft YaHei", "Segoe UI", sans-serif;
+    display: flex; flex-direction: column; overflow: hidden;
+    overflow-x: hidden;
+  }
+  /* ---------- 顶栏 ---------- */
+  header {
+    display: flex; align-items: center; gap: 14px;
+    padding: 8px 14px; background: var(--panel);
+    border-bottom: 1px solid var(--border); flex-wrap: wrap;
+  }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--red);
+         box-shadow: 0 0 6px var(--red); flex: none; }
+  .dot.on  { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .dot.mid { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
+  #connText { min-width: 240px; color: var(--dim); }
+  #connText b { color: var(--text); }
+  .metric { color: var(--dim); }
+  .metric b { color: var(--accent); font-size: 15px; font-family: Consolas, monospace; }
+  .spacer { flex: 1; }
+  button {
+    background: #21262d; color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 5px 12px; cursor: pointer; font-size: 13px;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: .4; cursor: default; }
+  #recBtn { border-color: var(--red); color: var(--red); }
+  #recBtn.on { background: var(--red); color: #fff; }
+  #tagInput, #clipInput {
+    background: #0d1117; color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 5px 8px; width: 110px; font-size: 13px;
+  }
+  /* ---------- 四宫格 ---------- */
+  main { flex: 1; display: flex; min-height: 0; }
+  #grid {
+    flex: 1; display: grid; min-width: 0;
+    grid-template-columns: 1.2fr 1fr; grid-template-rows: 1fr 1fr;
+    gap: 8px; padding: 8px;
+  }
+  section { position: relative; background: var(--panel);
+            border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  section canvas { display: block; width: 100%; height: 100%; }
+  .ptitle {
+    position: absolute; top: 5px; left: 9px; z-index: 2;
+    color: var(--dim); font-size: 12px; pointer-events: none;
+  }
+  .pnote {
+    position: absolute; bottom: 5px; right: 9px; z-index: 2;
+    color: #586272; font-size: 10px; font-family: Consolas; pointer-events: none;
+  }
+  #ov {
+    position: absolute; inset: 0; z-index: 3; display: none;
+    align-items: center; justify-content: center; pointer-events: none;
+  }
+  #ov.count { display: flex; color: var(--yellow); font-size: 90px;
+              font-family: Consolas; text-shadow: 0 0 30px var(--yellow); }
+  #ov.rec { display: flex; color: var(--red); font-size: 22px;
+            background: rgba(13,17,23,.35); animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: .55; } }
+  /* ---------- 侧栏 ---------- */
+  aside {
+    width: 244px; flex: none; background: var(--panel);
+    border-left: 1px solid var(--border); padding: 12px;
+    display: flex; flex-direction: column; gap: 14px;
+    overflow-y: auto; overflow-x: hidden;
+  }
+  aside h3 { font-size: 12px; color: var(--dim); font-weight: normal;
+             text-transform: uppercase; letter-spacing: 1px; }
+  .seg { display: flex; gap: 6px; }
+  .seg button { flex: 1; }
+  .seg button.active { background: var(--accent); color: #08203c; border-color: var(--accent); }
+  .row { display: flex; align-items: center; gap: 6px; }
+  .row label { width: 56px; color: var(--dim); flex: none; }
+  .row input[type=range] { flex: 1; min-width: 0; accent-color: var(--accent); }
+  .row .val { width: 42px; text-align: right; font-family: Consolas, monospace; }
+  #recInfo { color: var(--dim); font-size: 12px; min-height: 34px; }
+  #recInfo b { color: var(--red); }
+  /* ---------- 采集工作台 ---------- */
+  #workbench {
+    flex: none; background: var(--panel); border-top: 1px solid var(--border);
+    padding: 8px 14px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  #workbench .grp { display: flex; align-items: center; gap: 8px; }
+  #workbench .lbl { color: var(--dim); }
+  #clipBtn { border-color: var(--red); color: var(--red); min-width: 110px; }
+  #clipBtn.busy { background: var(--red); color: #fff; animation: blink 1s infinite; }
+  #chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip {
+    background: #0d1117; border: 1px solid var(--border); border-radius: 12px;
+    padding: 2px 10px; font-size: 12px; color: var(--accent);
+  }
+  .chip b { color: var(--green); }
+  #exportBtn { border-color: var(--green); color: var(--green); }
+  #info { color: var(--dim); font-size: 12px; min-width: 200px; }
+  #info b { color: var(--green); }
+
+  /* ---------- 全局 Toast 通知 ---------- */
+  #toastContainer {
+    position: fixed; top: 58px; right: 18px; z-index: 9999;
+    display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+  }
+  .toast {
+    background: #161b22; border: 1px solid var(--border);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+    border-radius: 8px; padding: 10px 14px; min-width: 280px; max-width: 380px;
+    color: var(--text); font-size: 13px; line-height: 1.4;
+    display: flex; align-items: flex-start; gap: 10px;
+    animation: toastIn 0.25s ease-out; pointer-events: auto;
+    transition: opacity 0.3s, transform 0.3s;
+  }
+  .toast.success { border-left: 4px solid var(--green); }
+  .toast.warning { border-left: 4px solid var(--yellow); }
+  .toast.error   { border-left: 4px solid var(--red); }
+  .toast.info    { border-left: 4px solid var(--accent); }
+  .toast-title { font-weight: bold; margin-bottom: 3px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .toast-body { font-size: 12px; color: var(--dim); word-break: break-all; }
+  .toast-body b { color: var(--text); }
+  .toast-close { background: none; border: none; color: var(--dim); cursor: pointer; padding: 0 4px; font-size: 14px; line-height: 1; }
+  .toast-close:hover { color: var(--text); }
+  @keyframes toastIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+</head>
+<body>
+
+<div id="toastContainer"></div>
+
+<header>
+  <div class="dot" id="dot"></div>
+  <div id="connText">连接中...</div>
+  <div class="metric">帧率 <b id="mFps">--</b> fps</div>
+  <div class="metric">延迟 <b id="mLat">--</b> ms</div>
+  <div class="metric">点数 <b id="mPts">--</b></div>
+  <div class="metric">帧号 <b id="mFrame">--</b></div>
+  <div class="metric"><b id="mKbps">--</b> KB/s</div>
+  <div class="spacer"></div>
+  <div id="cfgSeg" style="display:inline-flex;gap:3px;background:#0d1117;border:1px solid var(--border);border-radius:6px;padding:2px">
+    <button id="btn20fps" disabled style="padding:4px 9px;font-size:12px;border:none;background:var(--accent);color:#08203c;border-radius:4px;font-weight:bold" title="20fps 实验配置：当前板子曾停止响应，建议使用15fps">20fps (已禁用)</button>
+    <button id="btn15fps" style="padding:4px 9px;font-size:12px;border:none;background:transparent;color:var(--dim);border-radius:4px" title="15fps 稳定推荐配置 (每帧66ms，增加处理时间余量)">15fps (稳定推荐)</button>
+  </div>
+  <input id="tagInput" value="gesture_A" title="打标时写入连续录制文件">
+  <button id="tagBtn" disabled>打标 (T)</button>
+  <button id="recBtn">● 连续录制</button>
+</header>
+
+<main>
+  <div id="grid">
+    <section>
+      <div class="ptitle">点云 · 俯视（速度着色 / 余晖轨迹）</div>
+      <canvas id="view"></canvas>
+      <div id="ov"></div>
+    </section>
+    <section>
+      <div class="ptitle">距离-时间瀑布图（手势 → 亮轨迹）</div>
+      <canvas id="rtm"></canvas>
+      <div class="pnote">0m ↔ 4.5m ｜ 右端 = 当前</div>
+    </section>
+    <section>
+      <div class="ptitle">点云 · 侧视（前方距离 / 高度）</div>
+      <canvas id="side"></canvas>
+      <div class="pnote">→ 前方 0-6.4m ｜ ↑ 高度</div>
+    </section>
+    <section>
+      <div class="ptitle">多普勒-时间瀑布图（速度谱历史）</div>
+      <canvas id="vt"></canvas>
+      <div class="pnote">↑ 靠近 (+3.5m/s) ｜ 0m/s ｜ ↓ 远离 (-3.5m/s) ｜ 右端 = 当前</div>
+    </section>
+  </div>
+  <aside>
+    <div>
+      <h3>显示</h3>
+      <div class="row"><label>余晖</label>
+        <input type="range" id="sTrail" min="0" max="30" value="10">
+        <span class="val" id="vTrail">10帧</span></div>
+      <div class="row"><label>点大小</label>
+        <input type="range" id="sSize" min="2" max="9" value="4" step="0.5">
+        <span class="val" id="vSize">4.0</span></div>
+      <div class="row"><label>SNR过滤</label>
+        <input type="range" id="sSnr" min="0" max="30" value="0">
+        <span class="val" id="vSnr">关</span></div>
+      <div class="row"><label>速度门限</label>
+        <input type="range" id="sVth" min="5" max="50" value="15" step="5">
+        <span class="val" id="vVth">0.15</span></div>
+    </div>
+    <div>
+      <h3>连续录制</h3>
+      <div id="recInfo">未录制。整段存 recordings/rec_*.jsonl，打标行带 tag 字段。</div>
+    </div>
+    <div style="flex:1"></div>
+    <div style="color:var(--dim);font-size:11px">
+      红点 = 靠近　蓝点 = 远离<br>灰点 = 静止（|v| &lt; 门限）<br>
+      热图亮度自动增益<br>瀑布图右端 = 最新一帧
+    </div>
+  </aside>
+</main>
+
+<div id="workbench">
+  <div class="grp"><span class="lbl">手势</span>
+    <select id="presetLabel" style="background:#0d1117;color:var(--text);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:13px">
+      <option value="swipe_right">swipe_right (右滑)</option>
+      <option value="swipe_left">swipe_left (左滑)</option>
+      <option value="swipe_up">swipe_up (上滑)</option>
+      <option value="swipe_down">swipe_down (下滑)</option>
+      <option value="circle_cw">circle_cw (顺时针画圈)</option>
+      <option value="circle_ccw">circle_ccw (逆时针画圈)</option>
+      <option value="push">push (前推)</option>
+      <option value="pull">pull (后拉)</option>
+      <option value="idle">idle (无手势/背景)</option>
+      <option value="custom">自定义标签...</option>
+    </select>
+    <input id="clipInput" value="swipe_right" style="width:105px" title="实际保存的标签名">
+  </div>
+  <div class="grp"><span class="lbl">被试</span>
+    <select id="subInput" style="background:#0d1117;color:var(--text);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:13px">
+      <option value="s01">s01 (被试1)</option>
+      <option value="s02">s02 (被试2)</option>
+      <option value="s03">s03 (被试3)</option>
+      <option value="s04">s04 (被试4)</option>
+      <option value="s05">s05 (被试5)</option>
+    </select>
+  </div>
+  <div class="grp"><span class="lbl">时长</span>
+    <select id="clipDur">
+      <option value="1">1 秒</option>
+      <option value="2">2 秒</option>
+      <option value="3" selected>3 秒</option>
+      <option value="5">5 秒</option>
+    </select>
+  </div>
+  <button id="clipBtn">● 录制片段 (C / 空格)</button>
+  <button id="undoBtn" disabled title="撤销并删除刚录制的这一条片段 (快捷键 U)" style="border-color:var(--yellow);color:var(--yellow)">↩ 撤销 (U)</button>
+  <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;color:var(--text);user-select:none;margin-left:4px" title="采完一个自动等待2秒开启下一个，适合单人连续自采 (快捷键 A)">
+    <input type="checkbox" id="autoCheck" style="cursor:pointer"> 自动连采 (A)
+  </label>
+  <div class="grp"><span class="lbl">样本</span><div id="chips"><span class="chip">暂无</span></div></div>
+  <div class="spacer"></div>
+  <button id="exportBtn">导出数据集 .npz</button>
+  <div id="info">每个片段存 recordings/clips/&lt;标签&gt;/*.jsonl；导出后用 load_dataset.py 读取</div>
+</div>
+
+
+<script>
+"use strict";
+// ==================== 全局 Toast 提示 ====================
+function showToast(title, body, type = "info", dur = 4000) {
+  const container = $("toastContainer");
+  if (!container) return;
+  const t = document.createElement("div");
+  t.className = "toast " + type;
+  t.innerHTML = `
+    <div style="flex:1">
+      <div class="toast-title"><span>${title}</span> <button class="toast-close">&times;</button></div>
+      <div class="toast-body">${body}</div>
+    </div>
+  `;
+  t.querySelector(".toast-close").onclick = () => removeToast(t);
+  container.appendChild(t);
+  if (dur > 0) {
+    setTimeout(() => removeToast(t), dur);
+  }
+}
+function removeToast(t) {
+  if (!t || t._removing) return;
+  t._removing = true;
+  t.style.opacity = "0";
+  t.style.transform = "translateY(-10px)";
+  setTimeout(() => { if (t.parentNode) t.parentNode.removeChild(t); }, 300);
+}
+
+// ==================== 状态 ====================
+const $ = id => document.getElementById(id);
+let cur = null, trails = [], connected = false;
+let opts = { trail: 10, size: 4, snr: 0, vth: 0.15 };
+let clipBusy = false;        // 正在倒计时/录制片段
+let exportTimer = null;
+let autoLoopTimer = null;
+let clipCountdownTimer = null;
+function resetClipUI() {
+  if (clipCountdownTimer) clearInterval(clipCountdownTimer);
+  if (autoLoopTimer) clearInterval(autoLoopTimer);
+  clipCountdownTimer = autoLoopTimer = null;
+  clipBusy = false;
+  $("ov").className = ""; $("ov").textContent = "";
+  $("clipBtn").disabled = false;
+  $("clipBtn").classList.remove("busy");
+  $("clipBtn").textContent = "● 录制片段 (C / 空格)";
+}
+
+// ==================== WebSocket（断线自动重连） ====================
+let ws = null;
+let radarStatus = {};
+function connect() {
+  ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
+  ws.onmessage = e => onMsg(JSON.parse(e.data));
+  ws.onclose = () => { connected = false; resetClipUI(); setStatus(null); $("exportBtn").disabled = false; $("exportBtn").textContent = "导出数据集 .npz"; setTimeout(connect, 2000); };
+  ws.onerror = () => ws.close();
+}
+connect();
+
+function escapeHTML(value) {
+  return String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function safeMessage(value) {
+  if (typeof value === 'string') return escapeHTML(value);
+  if (Array.isArray(value)) return value.map(safeMessage);
+  if (value && typeof value === 'object') return Object.fromEntries(
+    Object.entries(value).map(([k,v]) => [escapeHTML(k), safeMessage(v)]));
+  return value;
+}
+function onMsg(m) {
+  if (m.type === 'status') m = safeMessage(m);
+  if (m.type === "frame") {
+    cur = m;
+    if (opts.trail > 0) {
+      trails.push(m);
+      while (trails.length > opts.trail) trails.shift();
+    } else trails = [];
+    if (m.rp) rtm.push(m.rp.slice().reverse());      // 0m 在下、4.5m 在上
+    vt.push(m.dv.slice().reverse());                 // 靠近(+v) 在上
+    $("mFrame").textContent = m.frame;
+    $("mPts").textContent = m.pts.length;
+  } else if (m.type === "status") {
+    setStatus(m);
+  }
+}
+
+function setStatus(m) {
+  // 事件通知是增量消息；没有 connected 字段不代表板子断开。
+  if (m) {
+    radarStatus = {...radarStatus, ...Object.fromEntries(
+      Object.entries(m).filter(([key]) => ![
+        "cfg_switching", "cfg_switched", "cfg_error", "rec_stopped",
+        "clip_done", "clip_undone", "clip_undo_error", "export_done", "exporting", "command_error"
+      ].includes(key)))};
+    m = {...radarStatus, ...m};
+  } else {
+    radarStatus = {};
+  }
+  const dot = $("dot");
+  if (m && m.exporting === false && !exportTimer) { $("exportBtn").disabled = false; $("exportBtn").textContent = "导出数据集 .npz"; }
+  if (m && m.command_error) { resetClipUI(); showToast("操作被拒绝", m.command_error, "warning"); }
+  if (m && m.cfg_error && !m.connected) showToast("配置失败", m.cfg_error, "warning");
+  if (m && m.clip_recording === null && clipBusy && !clipCountdownTimer) resetClipUI();
+  if (!m || !m.connected) {
+    connected = false;
+    dot.className = "dot";
+    $("connText").innerHTML = m
+      ? "<b>" + (m.phase || "未连接") + "</b>" + (m.error ? " — " + m.error : "")
+      : "<b>连接断开</b> — 2 秒后自动重连";
+    $("mFps").textContent = $("mLat").textContent = "--";
+    $("mKbps").textContent = "--";
+    return;
+  }
+  connected = true;
+  dot.className = "dot on";
+  $("connText").innerHTML = "<b>" + m.phase + "</b>  CLI " + (m.cli || "?")
+                          + " / Data " + (m.data || "?");
+  if (m.fps !== undefined) $("mFps").textContent = m.fps;
+  if (m.latency_ms !== undefined) $("mLat").textContent = m.latency_ms;
+  if (m.kbps !== undefined) $("mKbps").textContent = m.kbps;
+  $("recBtn").classList.toggle("on", m.recording);
+  $("recBtn").textContent = m.recording ? "■ 停止录制" : "● 连续录制";
+  $("tagBtn").disabled = !m.recording;
+  if (m.recording) {
+    $("recInfo").innerHTML = "<b>● 录制中</b> 已存 " + m.rec_frames + " 帧<br>" + m.rec_file;
+  } else if (!m.rec_stopped && $("recInfo").innerHTML.indexOf("上次录制已保存") === -1) {
+    $("recInfo").innerHTML = "未录制。整段存 recordings/rec_*.jsonl，打标行带 tag 字段。";
+  }
+
+  if (m.rec_stopped) {
+    const s = m.rec_stopped;
+    showToast("⏹️ 连续录制已停止", `已保存 <b>${s.frames}</b> 帧<br>文件：${s.filename}`, "info", 5000);
+    $("recInfo").innerHTML = `<span style="color:var(--green)">✓ 上次录制已保存</span><br>共 <b>${s.frames}</b> 帧<br><span style="font-size:11px;word-break:break-all">${s.filename}</span>`;
+  }
+
+  if (m.cfg_mode) {
+    if (typeof clearCfgSwitchTimer === "function") clearCfgSwitchTimer();
+    const is20 = m.cfg_mode === "20fps";
+    $("btn20fps").style.background = is20 ? "var(--accent)" : "transparent";
+    $("btn20fps").style.color = is20 ? "#08203c" : "var(--dim)";
+    $("btn20fps").style.fontWeight = is20 ? "bold" : "normal";
+    $("btn20fps").textContent = "20fps (已禁用)";
+    $("btn20fps").disabled = true;
+    $("btn15fps").style.background = !is20 ? "var(--yellow)" : "transparent";
+    $("btn15fps").style.color = !is20 ? "#08203c" : "var(--dim)";
+    $("btn15fps").style.fontWeight = !is20 ? "bold" : "normal";
+    $("btn15fps").textContent = "15fps (稳定推荐)";
+    $("btn15fps").disabled = false;
+  }
+  if (m.cfg_switching) {
+    showToast("⏳ 正在切换雷达配置", `正在向 CLI 串口下发 ${m.cfg_switching} 配置...`, "info", 2000);
+  }
+  if (m.cfg_switched) {
+    if (typeof clearCfgSwitchTimer === "function") clearCfgSwitchTimer();
+    showToast("⚡ 雷达配置切换成功", `已切至 <b>${m.cfg_switched.mode}</b>（${m.cfg_switched.mode === "20fps" ? "周期50ms / 采样密度高" : "周期66ms / 放宽算力防丢帧"}）`, "success", 4000);
+  }
+  if (m.cfg_error) {
+    if (typeof clearCfgSwitchTimer === "function") clearCfgSwitchTimer();
+    showToast("⚠️ 配置操作受限", m.cfg_error, "warning", 5000);
+    $("btn20fps").disabled = true; $("btn15fps").disabled = false;
+    $("btn20fps").textContent = "20fps (已禁用)"; $("btn15fps").textContent = "15fps (稳定推荐)";
+  }
+
+  if (m.samples) renderChips(m.samples);
+  if (m.clip_recording && !clipBusy) {             // 兜底：后端已在录
+    clipBusy = true;
+    $("ov").className = "rec";
+    $("ov").textContent = "● 录制片段 [" + m.clip_recording + "]";
+    $("clipBtn").classList.add("busy");
+  }
+  if (m.clip_done) {
+    clipBusy = false;
+    $("ov").className = ""; $("ov").textContent = "";
+    $("clipBtn").classList.remove("busy");
+    $("clipBtn").disabled = false;
+    $("clipBtn").textContent = "● 录制片段 (C / 空格)";
+    $("undoBtn").disabled = false;
+
+    const cd = m.clip_done;
+    const npts = cd.n_roi_pts !== undefined ? cd.n_roi_pts : 0;
+    const isLow = npts < 40;
+    let infoStr = `<b>已保存</b> ${cd.n_frames} 帧 (ROI点数: ${npts}) → ${cd.path}`;
+    if (isLow) {
+      infoStr += ` <span style="color:var(--yellow)">⚠️ 点数偏少，建议撤销(U)</span>`;
+      showToast("⚠️ 样本质量预警", `标签 <b>${cd.label}</b> 录制完成，但有效点数仅 <b>${npts}</b> 点！<br>动作可能偏离雷达视野，建议按 <b>U</b> 撤销重录。`, "warning", 6000);
+    } else {
+      showToast("✅ 手势片段录制完成", `标签：<b>${cd.label}</b> (被试: ${cd.subject})<br>已保存 <b>${cd.n_frames}</b> 帧 / ROI点数 <b>${npts}</b>`, "success", 4000);
+    }
+    $("info").innerHTML = infoStr;
+
+    // 自动连采逻辑
+    if ($("autoCheck") && $("autoCheck").checked) {
+      if (autoLoopTimer) clearInterval(autoLoopTimer);
+      let wait = 2;
+      const ov = $("ov");
+      ov.className = "count";
+      ov.textContent = `准备下一次 [${cd.label}] (${wait}s)...`;
+      showToast("🔄 自动连采进行中", `2 秒后自动开启下一轮采集 (快捷键 A 随时停止)`, "info", 1800);
+      autoLoopTimer = setInterval(() => {
+        wait--;
+        if (wait > 0) {
+          ov.textContent = `准备下一次 [${cd.label}] (${wait}s)...`;
+        } else {
+          clearInterval(autoLoopTimer);
+          autoLoopTimer = null;
+          ov.textContent = ""; ov.className = "";
+          if ($("autoCheck").checked && !clipBusy && connected) {
+            startClipCountdown();
+          }
+        }
+      }, 1000);
+    }
+  }
+
+  if (m.clip_undone) {
+    $("undoBtn").disabled = true;
+    showToast("🗑️ 样本已撤销", `已删除文件：<b>${m.clip_undone.filename}</b>`, "info", 4000);
+    $("info").innerHTML = `<span style="color:var(--yellow)">↩ 上一样本已撤销删除 (${m.clip_undone.filename})</span>`;
+    if ($("autoCheck") && $("autoCheck").checked && autoLoopTimer) {
+      clearInterval(autoLoopTimer);
+      autoLoopTimer = null;
+      $("ov").textContent = ""; $("ov").className = "";
+      showToast("⏸️ 自动连采已暂停", "撤销后已暂停连采，请按空格或 C 重新采集该手势", "info", 3500);
+    }
+  }
+  if (m.clip_undo_error) {
+    showToast("⚠️ 撤销提示", m.clip_undo_error, "warning", 4000);
+  }
+  if (m.exporting) {
+    $("exportBtn").disabled = true;
+    $("exportBtn").textContent = "⏳ 正在打包...";
+  }
+  if (m.export_done) {
+    const d = m.export_done;
+    if (d.error) {
+      $("info").innerHTML = "<span style='color:var(--red)'>导出失败: " + d.error + "</span>";
+      showToast("❌ 导出失败", d.error, "error", 5000);
+      $("exportBtn").disabled = false;
+      $("exportBtn").textContent = "导出数据集 .npz";
+    } else {
+      $("info").innerHTML = "<b>已导出</b> " + d.n_clips + " 个片段 → <code>" + d.filename + "</code> (" + d.size_kb + " KB) <a href='" + d.download_url + "' style='color:var(--accent);margin-left:6px;text-decoration:underline' target='_blank'>[下载文件]</a>";
+      showToast("🎉 数据集导出成功", `已打包 <b>${d.n_clips}</b> 个片段（${d.n_frames || 0} 帧）<br>已保存至：<b>recordings/${d.filename}</b> (${d.size_kb} KB)<br><a href="${d.download_url}" style="color:var(--accent);text-decoration:underline" target="_blank">[若需另外下载请点击此处]</a>`, "success", 7000);
+
+      // 防重复下载/重复导出冷却保护（5秒倒计时）
+      if (exportTimer) clearInterval(exportTimer);
+      let cd = 5;
+      $("exportBtn").disabled = true;
+      $("exportBtn").textContent = `已导出 (${cd}s)`;
+      exportTimer = setInterval(() => {
+        cd--;
+        if (cd > 0) {
+          $("exportBtn").textContent = `已导出 (${cd}s)`;
+        } else {
+          clearInterval(exportTimer);
+          exportTimer = null;
+          $("exportBtn").disabled = false;
+          $("exportBtn").textContent = "导出数据集 .npz";
+        }
+      }, 1000);
+    }
+  }
+}
+
+function renderChips(samples) {
+  const keys = Object.keys(samples);
+  $("chips").innerHTML = keys.length
+    ? keys.map(k => `<span class="chip">${k} <b>×${samples[k]}</b></span>`).join("")
+    : '<span class="chip">暂无</span>';
+}
+
+// ==================== 控件 ====================
+let cfgSwitchTimer = null;
+function clearCfgSwitchTimer() {
+  if (cfgSwitchTimer) {
+    clearTimeout(cfgSwitchTimer);
+    cfgSwitchTimer = null;
+  }
+}
+
+$("btn20fps").onclick = () => {
+  showToast("20fps 已禁用", "当前固件切换不兼容且稳定性未通过，请使用15fps。", "warning", 5000);
+
+};
+$("btn15fps").onclick = () => {
+  if ($("btn15fps").disabled || !connected) return;
+  $("btn20fps").disabled = true; $("btn15fps").disabled = true;
+  $("btn15fps").textContent = "⏳ 切换中...";
+  clearCfgSwitchTimer();
+  cfgSwitchTimer = setTimeout(() => {
+    $("btn20fps").disabled = true; $("btn15fps").disabled = false;
+    $("btn20fps").textContent = "20fps (已禁用)"; $("btn15fps").textContent = "15fps (稳定推荐)";
+    showToast("⚠️ 切换无响应", "未收到雷达切换响应，请先重启后台服务以加载最新配置", "warning", 5000);
+  }, 5000);
+  ws.send(JSON.stringify({type: "cmd", action: "switch_cfg", mode: "15fps"}));
+};
+
+$("recBtn").onclick = () =>
+  ws.send(JSON.stringify({type:"cmd", action: $("recBtn").classList.contains("on") ? "record_stop" : "record_start"}));
+$("tagBtn").onclick = () =>
+  ws.send(JSON.stringify({type:"cmd", action:"tag", label: $("tagInput").value}));
+$("exportBtn").onclick = () => {
+  if ($("exportBtn").disabled) return;
+  $("exportBtn").disabled = true;
+  $("exportBtn").textContent = "⏳ 正在打包...";
+  ws.send(JSON.stringify({type:"cmd", action:"export"}));
+};
+
+$("undoBtn").onclick = () => {
+  if ($("undoBtn").disabled || !connected) return;
+  if (autoLoopTimer) {
+    clearInterval(autoLoopTimer);
+    autoLoopTimer = null;
+    $("ov").textContent = ""; $("ov").className = "";
+  }
+  $("undoBtn").disabled = true;
+  ws.send(JSON.stringify({type: "cmd", action: "clip_undo"}));
+};
+
+$("autoCheck").onchange = () => {
+  if (!$("autoCheck").checked && autoLoopTimer) {
+    clearInterval(autoLoopTimer);
+    autoLoopTimer = null;
+    $("ov").textContent = ""; $("ov").className = "";
+    showToast("🛑 自动连采已关闭", "已切换为单次手动采集模式", "info", 2000);
+  } else if ($("autoCheck").checked) {
+    showToast("🔄 自动连采已开启", "每次采集完成后间隔 2 秒将自动开启下一轮采集 (快捷键 A 随时切换)", "info", 3000);
+  }
+};
+
+const GESTURE_KEYS = {
+  "1": "swipe_right", "2": "swipe_left", "3": "swipe_up", "4": "swipe_down",
+  "5": "circle_cw",   "6": "circle_ccw",  "7": "push",       "8": "pull",
+  "9": "idle"
+};
+
+addEventListener("keydown", e => {
+  if (document.activeElement && (document.activeElement.tagName === "INPUT" || document.activeElement.tagName === "SELECT")) return;
+  if (e.key === "t" || e.key === "T") {
+    if (!$("tagBtn").disabled) $("tagBtn").click();
+    return;
+  }
+  if (e.key === "c" || e.key === "C") {
+    if (!clipBusy && !$("clipBtn").disabled) startClipCountdown();
+    return;
+  }
+  if (e.code === "Space") {
+    e.preventDefault();
+    if (!clipBusy && !$("clipBtn").disabled) startClipCountdown();
+    return;
+  }
+  if (e.key === "u" || e.key === "U") {
+    if (!$("undoBtn").disabled) $("undoBtn").click();
+    return;
+  }
+  if (e.key === "a" || e.key === "A") {
+    $("autoCheck").checked = !$("autoCheck").checked;
+    $("autoCheck").onchange();
+    return;
+  }
+  if (GESTURE_KEYS[e.key]) {
+    const val = GESTURE_KEYS[e.key];
+    $("presetLabel").value = val;
+    $("clipInput").value = val;
+    showToast("🎯 切换手势", `[${e.key}] <b>${val}</b>`, "info", 1800);
+    return;
+  }
+});
+
+$("sTrail").oninput = e => { opts.trail = +e.target.value; $("vTrail").textContent = opts.trail + "帧"; };
+$("sSize").oninput  = e => { opts.size  = +e.target.value; $("vSize").textContent  = opts.size.toFixed(1); };
+$("sSnr").oninput   = e => { opts.snr   = +e.target.value; $("vSnr").textContent   = opts.snr ? "≥"+opts.snr+"dB" : "关"; };
+$("sVth").oninput   = e => { opts.vth   = +e.target.value / 100; $("vVth").textContent = opts.vth.toFixed(2); };
+
+$("presetLabel").onchange = e => {
+  if (e.target.value !== "custom") {
+    $("clipInput").value = e.target.value;
+  } else {
+    $("clipInput").focus();
+    $("clipInput").select();
+  }
+};
+$("clipInput").oninput = () => {
+  const match = Array.from($("presetLabel").options).some(o => o.value === $("clipInput").value);
+  $("presetLabel").value = match ? $("clipInput").value : "custom";
+};
+
+// ---- 片段采集：3 秒倒计时 → 通知后端 → 录制中 → 后端到时自动保存 ----
+function startClipCountdown() {
+  if (clipBusy || !connected) return;
+  clipBusy = true;
+  $("clipBtn").disabled = true;
+  $("undoBtn").disabled = true;
+  const ov = $("ov");
+  let n = 3;
+  ov.className = "count"; ov.textContent = n;
+  clipCountdownTimer = setInterval(() => {
+    n--;
+    if (n > 0) { ov.textContent = n; return; }
+    clearInterval(clipCountdownTimer);
+    clipCountdownTimer = null;
+    ov.className = "rec";
+    const lbl = ($("clipInput").value || "gesture").trim();
+    const subj = ($("subInput") ? $("subInput").value : "s01").trim();
+    if (!connected || !ws || ws.readyState !== WebSocket.OPEN) { resetClipUI(); return; }
+    ov.textContent = "● 录制片段 [" + lbl + " · " + subj + "] 对着雷达做动作！";
+    ws.send(JSON.stringify({type:"cmd", action:"clip_start",
+                            label: lbl, subject: subj, dur: +$("clipDur").value}));
+  }, 1000);
+}
+$("clipBtn").onclick = startClipCountdown;
+
+// ==================== 绘制工具 ====================
+function fit(cv) {
+  const dpr = devicePixelRatio || 1, r = cv.getBoundingClientRect();
+  if (cv.width !== Math.round(r.width * dpr) || cv.height !== Math.round(r.height * dpr)) {
+    cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
+  }
+  const ctx = cv.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { w: r.width, h: r.height, ctx };
+}
+
+// 热图配色：暗 → 蓝 → 青 → 黄 → 白
+const HEAT = [[0,[6,10,24]],[.3,[16,54,110]],[.6,[30,160,180]],[.82,[240,200,70]],[1,[255,255,255]]];
+function heat(t) {
+  t = Math.max(0, Math.min(1, t));
+  for (let i = 1; i < HEAT.length; i++) {
+    if (t <= HEAT[i][0]) {
+      const [t0, a] = HEAT[i-1], [t1, b] = HEAT[i], f = (t - t0) / (t1 - t0);
+      return a.map((x, j) => Math.round(x + (b[j] - x) * f));
+    }
+  }
+  return HEAT[HEAT.length-1][1];
+}
+
+// ---- 瀑布图：离屏画布做环形滚动，新列从右侧进 ----
+const COLS = 280;
+class Waterfall {
+  constructor(cv, rows) {
+    this.cv = cv; this.rows = rows; this.scale = 20;
+    this.off = document.createElement("canvas");
+    this.off.width = COLS; this.off.height = rows;
+    this.octx = this.off.getContext("2d");
+    this.octx.fillStyle = "#060a14";
+    this.octx.fillRect(0, 0, COLS, rows);
+  }
+  push(vals) {                       // vals[0] 画在顶行
+    let mx = 0; for (const v of vals) if (v > mx) mx = v;
+    this.scale = Math.max(6, this.scale * 0.93 + mx * 0.07);
+    this.octx.drawImage(this.off, -1, 0);
+    const img = this.octx.createImageData(1, this.rows);
+    for (let r = 0; r < this.rows; r++) {
+      const c = heat(vals[r] / this.scale);
+      img.data.set([c[0], c[1], c[2], 255], r * 4);
+    }
+    this.octx.putImageData(img, COLS - 1, 0);
+  }
+  draw() {
+    const { w, h, ctx } = fit(this.cv);
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(this.off, 0, 0, COLS, this.rows, 0, 0, w, h);
+  }
+}
+const rtm = new Waterfall($("rtm"), 128);   // 128 个距离 bin
+const vt  = new Waterfall($("vt"), 33);     // 33 个速度 bin
+
+// ---- 点云 ----
+function vColor(v, alpha) {
+  let c;
+  if (v === null || Math.abs(v) < opts.vth) c = [125, 133, 144];
+  else {
+    const t = Math.max(-1, Math.min(1, v));
+    const gray = [150, 160, 170], red = [248, 81, 73], blue = [88, 166, 255];
+    const mix = (a, b, f) => a.map((x, i) => Math.round(x + (b[i] - x) * f));
+    c = t > 0 ? mix(gray, red, t) : mix(gray, blue, -t);
+  }
+  return "rgba(" + c[0] + "," + c[1] + "," + c[2] + "," + alpha + ")";
+}
+function mapper(w, h, mode) {
+  let sx, sy;
+  if (mode === "top") { sx = [-3.4, 3.4]; sy = [-0.6, 6.4]; }
+  else               { sx = [-0.6, 6.4]; sy = [-1.2, 2.8]; }
+  const k = Math.min(w / (sx[1] - sx[0]), h / (sy[1] - sy[0])) * 0.94;
+  const cx = (sx[0] + sx[1]) / 2, cy = (sy[0] + sy[1]) / 2;
+  return { k, px: x => w/2 + (x - cx) * k, py: y => h/2 - (y - cy) * k };
+}
+function drawPoints(ctx, M, pts, alpha, mode) {
+  for (const p of pts) {
+    const x = p[0], y = p[1], z = p[2], v = p[3], snr = p[4];
+    if (snr !== null && opts.snr && snr < opts.snr) continue;
+    // TI 官方坐标系：mode===top 俯视（X左右横向，Y前方纵深），mode===side 侧视（Y前方纵深，Z垂直高度）
+    const wx = mode === "top" ? x : y;
+    const wy = mode === "top" ? y : z;
+    ctx.fillStyle = vColor(v, alpha);
+    const r = (v !== null && Math.abs(v) >= opts.vth ? opts.size : opts.size * 0.7) / 2;
+    ctx.beginPath(); ctx.arc(M.px(wx), M.py(wy), r, 0, 6.2832); ctx.fill();
+  }
+}
+function drawCloud(id, mode) {
+  const { w, h, ctx } = fit($(id));
+  ctx.clearRect(0, 0, w, h);
+  const M = mapper(w, h, mode);
+  const ox = M.px(0), oy = M.py(0);
+  ctx.strokeStyle = "#21262d"; ctx.fillStyle = "#586272";
+  ctx.font = "11px Consolas"; ctx.textAlign = "center";
+  if (mode === "top") {
+    for (let r = 1; r <= 4; r++) {
+      ctx.beginPath(); ctx.arc(ox, oy, r * M.k, 0, 6.2832); ctx.stroke();
+      ctx.fillText(r + "m", ox, oy - r * M.k - 4);
+    }
+    for (let a = -90; a <= 90; a += 30) {
+      const rad = (a - 90) * Math.PI / 180;
+      ctx.beginPath(); ctx.moveTo(ox, oy);
+      ctx.lineTo(ox + 4.4 * M.k * Math.cos(rad), oy + 4.4 * M.k * Math.sin(rad));
+      ctx.stroke();
+      ctx.fillText(a + "°", ox + 4.6 * M.k * Math.cos(rad), oy + 4.6 * M.k * Math.sin(rad) + 4);
+    }
+  } else {
+    for (let y = 0; y <= 6; y++) {
+      ctx.beginPath(); ctx.moveTo(M.px(y), 0); ctx.lineTo(M.px(y), h); ctx.stroke();
+      ctx.fillText(y + "m", M.px(y), h - 6);
+    }
+    ctx.strokeStyle = "#3d444d";
+    ctx.beginPath(); ctx.moveTo(0, M.py(0)); ctx.lineTo(w, M.py(0)); ctx.stroke();
+  }
+
+  // 手势 ROI 辅助参考虚线框（浅绿虚线框）
+  ctx.save();
+  ctx.strokeStyle = "rgba(63, 185, 80, 0.45)";
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  if (mode === "top") {
+    // X: [-0.5, 0.5], Y: [0.05, 1.15]
+    const rx1 = M.px(-0.5), rx2 = M.px(0.5), ry1 = M.py(1.15), ry2 = M.py(0.05);
+    ctx.strokeRect(rx1, ry1, rx2 - rx1, ry2 - ry1);
+    ctx.fillStyle = "rgba(63, 185, 80, 0.65)";
+    ctx.font = "10px Consolas";
+    ctx.fillText("手势ROI区(1.0m×1.1m)", rx1 + 45, ry2 - 4);
+  } else {
+    // Y: [0.05, 1.15], Z: [-0.4, 0.5]
+    const rx1 = M.px(0.05), rx2 = M.px(1.15), ry1 = M.py(0.5), ry2 = M.py(-0.4);
+    ctx.strokeRect(rx1, ry1, rx2 - rx1, ry2 - ry1);
+    ctx.fillStyle = "rgba(63, 185, 80, 0.65)";
+    ctx.font = "10px Consolas";
+    ctx.fillText("手势ROI区(1.1m×0.9m)", rx1 + 45, ry2 - 4);
+  }
+  ctx.restore();
+
+  ctx.fillStyle = "#f85149";
+  ctx.beginPath();
+  ctx.moveTo(ox, oy - 7); ctx.lineTo(ox - 5, oy + 5); ctx.lineTo(ox + 5, oy + 5);
+  ctx.closePath(); ctx.fill();
+  ctx.font = "12px 'Microsoft YaHei'"; ctx.fillText("雷达", ox + 1, oy + 18);
+  trails.forEach((tr, i) => {
+    drawPoints(ctx, M, tr.pts, 0.05 + 0.4 * (i + 1) / trails.length, mode);
+  });
+  if (cur) drawPoints(ctx, M, cur.pts, 1, mode);
+  if (!connected) {
+    ctx.fillStyle = "rgba(13,17,23,.55)"; ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = "#8b949e"; ctx.font = "15px 'Microsoft YaHei'"; ctx.textAlign = "center";
+    ctx.fillText("等待串口连接...（检查桌面版/TI 网页是否占用）", w / 2, h / 2);
+  }
+}
+
+(function loop() {
+  drawCloud("view", "top");
+  rtm.draw();
+  drawCloud("side", "side");
+  vt.draw();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

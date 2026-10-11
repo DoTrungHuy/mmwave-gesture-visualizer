@@ -1,0 +1,17 @@
+const errors = [];
+page.on('pageerror', e => errors.push(e.message));
+await page.goto('http://127.0.0.1:8080/', {waitUntil: 'domcontentloaded'});
+await expect(page.locator('#connText')).toContainText('运行中', {timeout: 15000});
+await expect(page.locator('#btn15fps')).toHaveText('15fps (稳定推荐)');
+await expect(page.locator('#btn20fps')).toBeDisabled();
+const before = await page.locator('#mFrame').innerText();
+await expect.poll(() => page.locator('#mFrame').innerText(), {timeout: 5000}).not.toBe(before);
+const status = await page.locator('#connText').innerText();
+await page.evaluate(() => onMsg({type: 'status', cfg_error: '状态增量回归测试'}));
+await expect(page.locator('#connText')).toContainText('运行中');
+await page.evaluate(() => onMsg({type: 'status', cfg_error: '<img src=x onerror="window.__injected=true">'}));
+assert.equal(await page.locator('#toastContainer img').count(), 0);
+assert.equal(await page.evaluate(() => !!window.__injected), false);
+await page.reload({waitUntil: 'domcontentloaded'});
+await expect(page.locator('#connText')).toContainText('运行中', {timeout: 5000});
+return {status, fps: await page.locator('#mFps').innerText(), selectedMode: await page.evaluate(() => radarStatus.cfg_mode), errors};

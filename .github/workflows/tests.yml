@@ -1,0 +1,29 @@
+name: Offline tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Check dependency consistency
+        run: python -m pip check
+      - name: Run hardware-free regressions
+        env:
+          MPLBACKEND: Agg
+          PYTHONIOENCODING: utf-8
+        run: python -m unittest discover -p "test_*.py" -v
+      - name: Compile sources
+        run: python -m compileall -q .
