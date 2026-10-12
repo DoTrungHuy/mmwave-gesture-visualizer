@@ -80,20 +80,3 @@ python verify_live_connection.py
 ```
 
 `verify_browser.js` 是开发用Tabbit验证程序，不是平台启动依赖。GUI测试需要真实显示器。不要同时跑串口诊断与正在使用串口的查看器。
-
-## GitHub提交
-
-以**本目录为仓库根目录**，不要把 `D:\mmwave` 整体提交。`.gitignore`排除录制、NPZ/NPY、虚拟环境和缓存。不会删除你的本地数据。首次提交前检查：
-
-```powershell
-git init
-git status --short --untracked-files=all
-git add .
-git diff --cached --stat
-git diff --cached --name-only
-# 确认没有recordings、数据集、虚拟环境、凭据和不属于你的代码后：
-git commit -m "Add radar visualization and gesture acquisition platform"
-# 自行配置远程仓库后再push
-```
-
-未设置LICENSE：请在公开发布前确认自有代码、TI配置来源与第三方许可，并自行选择开源许可证。依赖版本对应本机验证环境，不代表其它Python/操作系统组合均已验证。
